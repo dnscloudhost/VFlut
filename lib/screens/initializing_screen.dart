@@ -1,22 +1,17 @@
 // lib/screens/initializing_screen.dart
-//
-// تغییرات جدید:
-//  • تعریف تسک‌ها در initState برای جلوگیری از ارور دسترسی به متدهای نمونه
-//  • دریافت و کش‌کردن تنظیمات اپ و سرورها در این صفحه
-//  • نمایش تبلیغ Splash در صورت فعال بودن تنظیمات
 
 import 'dart:async';
 import 'package:flutter/material.dart';
 
-import '../main.dart';
-import '../services/server_api.dart';
-import '../data/locations.dart';
-import '../controllers/settings_controller.dart';
-import '../services/admob_service.dart';
-import '../services/server_api.dart';
+import '../data/locations.dart';                   // ← provides allConfigs
+import '../controllers/settings_controller.dart'; // ← SettingsController & AppSettings
+import '../services/server_api.dart';             // ← ServerApi
+import '../services/smart_vpn_manager.dart';      // ← SmartVpnManager
+import '../services/admob_service.dart';          // ← AdMobService
+import '../main.dart';                            // ← MainPage
 
 class InitializingScreen extends StatefulWidget {
-  const InitializingScreen({super.key});
+  const InitializingScreen({Key? key}) : super(key: key);
 
   @override
   State<InitializingScreen> createState() => _InitializingScreenState();
@@ -26,7 +21,7 @@ class _InitializingScreenState extends State<InitializingScreen> {
   double _progressValue = 0.0;
   int _currentStepIndex = 0;
 
-  late final List<Map<String, dynamic>> _initializationTasks;
+  late final List<Map<String, Future<void> Function()>> _initializationTasks;
   late final List<bool> _stepCompleted;
 
   @override
@@ -35,25 +30,25 @@ class _InitializingScreenState extends State<InitializingScreen> {
 
     _initializationTasks = [
       {
-        'text': "Initializing security",
+        'text': 'Initializing security',
         'task': () => _simulateTask(durationMillis: 800),
       },
       {
-        'text': "Loading app settings",
+        'text': 'Loading app settings',
         'task': () async {
           await SettingsController.instance.load();
         },
       },
       {
-        'text': "Checking connection",
+        'text': 'Checking connection',
         'task': () => _simulateTask(durationMillis: 700),
       },
       {
-        'text': "Preparing VPN servers",
-        'task': () => _loadServerConfigs(),
+        'text': 'Preparing VPN servers',
+        'task': () => _prepareVpnServers(),
       },
       {
-        'text': "Almost ready",
+        'text': 'Almost ready',
         'task': () => _simulateTask(durationMillis: 500),
       },
     ];
@@ -65,15 +60,28 @@ class _InitializingScreenState extends State<InitializingScreen> {
   static Future<void> _simulateTask({int durationMillis = 500}) =>
       Future.delayed(Duration(milliseconds: durationMillis));
 
-  Future<void> _loadServerConfigs() async {
+  Future<void> _prepareVpnServers() async {
     try {
-      // ← متد صحیح:
+      // 1️⃣ Load all servers
       allConfigs = await ServerApi.loadAllServers();
       if (allConfigs.isEmpty) {
-        debugPrint("Warning: Server config list is empty after loading.");
+        debugPrint('Warning: no VPN servers loaded');
+      }
+
+      // 2️⃣ Register smart servers
+      final smartList = ServerApi.smart(allConfigs);
+      SmartVpnManager.instance.setSmartServers(smartList);
+
+      // 3️⃣ Detect user country
+      final cc = (await SettingsController.instance.detectUserCountryCode())
+          .toLowerCase();
+
+      // 4️⃣ If country is in smartCountries, connect smart
+      if (SettingsController.instance.isSmartCountry(cc)) {
+        await SmartVpnManager.instance.connectSmart();
       }
     } catch (e) {
-      debugPrint("Error loading server configs: $e");
+      debugPrint('Error preparing VPN servers: $e');
     }
   }
 
@@ -81,12 +89,8 @@ class _InitializingScreenState extends State<InitializingScreen> {
     for (var i = 0; i < _initializationTasks.length; i++) {
       if (!mounted) return;
 
-      setState(() {
-        _currentStepIndex = i;
-      });
-
-      final task = _initializationTasks[i]['task'] as Future<void> Function();
-      await task();
+      setState(() => _currentStepIndex = i);
+      await _initializationTasks[i]['task']!();
 
       if (!mounted) return;
       setState(() {
@@ -95,6 +99,7 @@ class _InitializingScreenState extends State<InitializingScreen> {
       });
     }
 
+    // Show splash ad if enabled
     final settings = SettingsController.instance.settings;
     if (settings.showAds) {
       await AdMobService.instance.showSplashAd();
@@ -119,7 +124,8 @@ class _InitializingScreenState extends State<InitializingScreen> {
     } else if (isActive) {
       icon = Icons.more_horiz_rounded;
       color = Colors.blueAccent.shade100;
-      style = const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w600);
+      style = const TextStyle(
+          color: Colors.white, fontSize: 15, fontWeight: FontWeight.w600);
     } else {
       icon = Icons.circle_outlined;
       color = Colors.grey.shade600;
@@ -141,8 +147,8 @@ class _InitializingScreenState extends State<InitializingScreen> {
 
   @override
   Widget build(BuildContext context) {
-    const vpnAppName   = "Mahan VPN";
-    const vpnAppSlogan = "Secure Connection • Fast Speed";
+    const vpnAppName = 'Mahan VPN';
+    const vpnAppSlogan = 'Secure Connection • Fast Speed';
 
     return Scaffold(
       backgroundColor: const Color(0xFF1A2035),
@@ -152,30 +158,36 @@ class _InitializingScreenState extends State<InitializingScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.shield_outlined, size: 80, color: Colors.blueAccent.shade100),
+              Icon(Icons.shield_outlined,
+                  size: 80, color: Colors.blueAccent.shade100),
               const SizedBox(height: 24),
               const Text(vpnAppName,
-                  style: TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
+                  style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 32,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 1.2)),
               const SizedBox(height: 8),
-              Text(vpnAppSlogan, style: TextStyle(color: Colors.grey.shade400, fontSize: 16)),
+              Text(vpnAppSlogan,
+                  style: TextStyle(color: Colors.grey.shade400, fontSize: 16)),
               const SizedBox(height: 48),
               ClipRRect(
                 borderRadius: BorderRadius.circular(8),
                 child: LinearProgressIndicator(
                   value: _progressValue,
                   backgroundColor: Colors.grey.shade700.withOpacity(0.5),
-                  valueColor: AlwaysStoppedAnimation<Color>(Colors.blueAccent.shade200),
+                  valueColor:
+                  AlwaysStoppedAnimation(Colors.blueAccent.shade200),
                   minHeight: 8,
                 ),
               ),
               const SizedBox(height: 32),
-              if (_initializationTasks.isNotEmpty)
-                for (var i = 0; i < _initializationTasks.length; i++)
-                  _buildStepItem(
-                    _initializationTasks[i]['text'] as String,
-                    _stepCompleted[i],
-                    i == _currentStepIndex && !_stepCompleted[i],
-                  ),
+              for (var i = 0; i < _initializationTasks.length; i++)
+                _buildStepItem(
+                  _initializationTasks[i]['text'] as String,
+                  _stepCompleted[i],
+                  i == _currentStepIndex && !_stepCompleted[i],
+                ),
             ],
           ),
         ),
