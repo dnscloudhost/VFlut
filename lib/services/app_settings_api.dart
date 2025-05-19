@@ -4,24 +4,26 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../models/app_settings.dart';
 
+/// سرویس برای دریافت تنظیمات و feature flags اپ
 class AppSettingsApi {
-  static const _baseUrl =
-      'https://designed-georgia-banner-threats.trycloudflare.com/api/applications';
-  static const _token =
-      '26|dhcAmNOaXR2GSsNIkCIt9RsvzFcSkzUPCsAZ8uBRf29385f5';
+  static const String _baseUrl = 'https://75e7-2a03-90c0-5f1-2903-00-951.ngrok-free.app';
+  static const String _token   = '26|dhcAmNOaXR2GSsNIkCIt9RsvzFcSkzUPCsAZ8uBRf29385f5';
 
-  static Future<AppSettings> fetch() async {
-    final res = await http.get(
-      Uri.parse(_baseUrl),
-      headers: {
-        'Accept': 'application/json',
-        'Authorization': 'Bearer $_token',
-      },
-    );
-    if (res.statusCode != 200) {
-      throw Exception('Failed to fetch app settings: ${res.statusCode}');
+  /// دریافت تنظیمات اپ از API
+  static Future<AppSettings> fetchSettings() async {
+    final uri = Uri.parse('$_baseUrl/api/applications');
+    final resp = await http.get(uri, headers: {
+      'Accept': 'application/json',
+      'Authorization': 'Bearer $_token',
+    });
+    if (resp.statusCode != 200) {
+      throw Exception('Failed to fetch app settings: ${resp.statusCode}');
     }
-    final data = (jsonDecode(res.body) as Map<String, dynamic>)['data'][0] as Map<String, dynamic>;
-    return AppSettings.fromJson(data);
+    final body = jsonDecode(resp.body) as Map<String, dynamic>;
+    final list = body['data'] as List<dynamic>;
+    if (list.isEmpty) {
+      throw Exception('No app settings returned');
+    }
+    return AppSettings.fromJson(list.first as Map<String, dynamic>);
   }
 }
