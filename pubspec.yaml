@@ -1,0 +1,51 @@
+name: mahannn
+description: "A new Flutter project."
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.7.2 <4.0.0" # با توجه به اینکه الان می 2025 هستیم، شاید بخوای sdk رو به نسخه جدیدتر مثل ">=3.4.0 <4.0.0" یا بالاتر ارتقا بدی اگر از آخرین ویژگی‌های دارت استفاده می‌کنی. اما فعلاً همین هم کار می‌کنه.
+  flutter: ">=3.3.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # از نسخه‌ی رسمی روی pub.dev استفاده می‌کنیم
+  flutter_v2ray: ^1.0.10
+
+  # آخرین نسخه‌ی Lottie
+  lottie: ^3.3.1 # بررسی کن آخرین نسخه lottie چی هست در pub.dev، الان ممکنه بالاتر باشه
+
+  #برای دریافت لیست اپ ها در splittunnel
+  device_apps: ^2.2.0 # <--- اصلاح شد
+
+  shared_preferences: ^2.2.3 # <--- این هم در حال حاضر (می 2025) نسخه خوبی هست، ولی برای اطمینان چک کن
+
+  # باید >=1.0.0 باشه تا با flutter_svg 2.x سازگار باشه
+  http: ^1.2.1 # آخرین نسخه http الان (می 2025) ^1.2.1 هست، ولی ^1.4.0 شما هم اگر با بقیه سازگاره مشکلی نداره
+
+  # آخرین نسخه‌ی flutter_svg
+  flutter_svg: ^2.0.10 # آخرین نسخه flutter_svg الان (می 2025) ^2.0.10 هست، ولی ^2.1.0 شما هم اگر کار می‌کنه اوکیه
+
+  cupertino_icons: ^1.0.8 # آخرین نسخه ^1.0.8
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  # نسخه‌ی 5.0.0 موجوده و کار می‌کنه
+  flutter_lints: ^4.0.0 # آخرین نسخه flutter_lints الان (می 2025) ^4.0.0 هست، ولی ^5.0.0 شما هم اگر مشکلی نداره اوکیه
+
+  google_mobile_ads: ^5.3.0   # جدیدترین نسخه پایدار (می ۲۰۲5) :contentReference[oaicite:0]{index=0}
+  device_info_plus: ^10.1.0   # برای تشخیص کشور/منطقهٔ کاربر (اختیاری)
+  webview_flutter: ^4.4.3
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/lottie/
+    - assets/flags/
+    - assets/auto_connect.png
+    - assets/icons/
