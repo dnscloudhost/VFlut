@@ -3,16 +3,15 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 
-import '../data/locations.dart';                   // ← provides allConfigs
-import '../controllers/settings_controller.dart'; // ← SettingsController & AppSettings
-import '../services/server_api.dart';             // ← ServerApi
-import '../services/smart_vpn_manager.dart';      // ← SmartVpnManager
-import '../services/admob_service.dart';          // ← AdMobService
-import '../main.dart';                            // ← MainPage
+import '../data/locations.dart';                   // provides global allConfigs
+import '../services/server_api.dart';             // ServerApi.loadAllServers(), ServerApi.smart()
+import '../controllers/settings_controller.dart'; // SettingsController.detectUserCountryCode(), isSmartCountry()
+import '../services/smart_vpn_manager.dart';      // SmartVpnManager
+import '../services/admob_service.dart';          // AdMobService
+import '../main.dart';                            // MainPage
 
 class InitializingScreen extends StatefulWidget {
   const InitializingScreen({Key? key}) : super(key: key);
-
   @override
   State<InitializingScreen> createState() => _InitializingScreenState();
 }
@@ -21,7 +20,7 @@ class _InitializingScreenState extends State<InitializingScreen> {
   double _progressValue = 0.0;
   int _currentStepIndex = 0;
 
-  late final List<Map<String, Future<void> Function()>> _initializationTasks;
+  late final List<Map<String, dynamic>> _initializationTasks;
   late final List<bool> _stepCompleted;
 
   @override
@@ -76,7 +75,7 @@ class _InitializingScreenState extends State<InitializingScreen> {
       final cc = (await SettingsController.instance.detectUserCountryCode())
           .toLowerCase();
 
-      // 4️⃣ If country is in smartCountries, connect smart
+      // 4️⃣ If country is in smart list, connect smart
       if (SettingsController.instance.isSmartCountry(cc)) {
         await SmartVpnManager.instance.connectSmart();
       }
@@ -89,8 +88,13 @@ class _InitializingScreenState extends State<InitializingScreen> {
     for (var i = 0; i < _initializationTasks.length; i++) {
       if (!mounted) return;
 
-      setState(() => _currentStepIndex = i);
-      await _initializationTasks[i]['task']!();
+      setState(() {
+        _currentStepIndex = i;
+      });
+
+      // execute task
+      final task = _initializationTasks[i]['task']! as Future<void> Function();
+      await task();
 
       if (!mounted) return;
       setState(() {
@@ -99,7 +103,7 @@ class _InitializingScreenState extends State<InitializingScreen> {
       });
     }
 
-    // Show splash ad if enabled
+    // show splash ad if enabled
     final settings = SettingsController.instance.settings;
     if (settings.showAds) {
       await AdMobService.instance.showSplashAd();
@@ -163,10 +167,11 @@ class _InitializingScreenState extends State<InitializingScreen> {
               const SizedBox(height: 24),
               const Text(vpnAppName,
                   style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 32,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 1.2)),
+                    color: Colors.white,
+                    fontSize: 32,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1.2,
+                  )),
               const SizedBox(height: 8),
               Text(vpnAppSlogan,
                   style: TextStyle(color: Colors.grey.shade400, fontSize: 16)),
