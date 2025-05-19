@@ -75,28 +75,32 @@ class SettingsController {
   SettingsController._();
   static final SettingsController instance = SettingsController._();
 
-  /// نگهدارنده تنظیمات فعلی (پس از load)
+  /// پس از load() این متغیر مقداردهی می‌شود
   late AppSettings settings;
 
   /// بارگذاری تنظیمات از سرور
   Future<void> load() async {
     try {
-      final fetched = await AppSettingsApi.fetchSettings();
-      settings = fetched;
-      debugPrint('>>> Loaded AppSettings: \$fetched');
+      settings = await AppSettingsApi.fetch();
+      debugPrint('>>> Loaded AppSettings: $settings');
     } catch (e, st) {
-      debugPrint('Error loading app settings: \$e\n\$st');
-      // در صورت ارور، تنظیمات قبلی (یا مقادیر پیش‌فرض) دست نخورده باقی می‌ماند
+      debugPrint('Error loading AppSettings: $e\n$st');
+      // در صورت خطا، تنظیمات پیش‌فرض خالی می‌سازیم
+      settings = AppSettings.fromJson({});
     }
   }
 
-  /// بررسی اینکه آیا یک کشور Smart تعریف شده
-  bool isSmartCountry(String countryCode) =>
-      settings.smartCountries.map((c) => c.toLowerCase()).contains(countryCode.toLowerCase());
+  /// بررسی اینکه آیا یک کشور در لیست smartCountries هست
+  bool isSmartCountry(String countryCode) {
+    final code = countryCode.toLowerCase();
+    return settings.smartCountries
+        .map((c) => c.toLowerCase())
+        .contains(code);
+  }
 
-  /// تشخیص کد کشور دستگاه (مثلاً برای initializing)
+  /// تشخیص کد کشور دستگاه (برای initializing)
   Future<String> detectUserCountryCode() async {
     final locale = WidgetsBinding.instance.window.locale;
-    return locale.countryCode?.toLowerCase() ?? 'unknown';
+    return locale.countryCode?.toLowerCase() ?? '';
   }
 }
