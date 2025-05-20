@@ -1,3 +1,5 @@
+// lib/screens/initializing_screen.dart
+
 import 'dart:async';
 import 'package:flutter/material.dart';
 
@@ -59,10 +61,7 @@ class _InitializingScreenState extends State<InitializingScreen> {
           barrierDismissible: false,
           builder: (_) => const AdPreparingOverlay(message: 'Connecting to smart…'),
         );
-
-        // actually connect
         await VpnService.instance.connectSmart();
-
         if (mounted) Navigator.pop(context);
       }
     } catch (e) {
@@ -72,6 +71,7 @@ class _InitializingScreenState extends State<InitializingScreen> {
   }
 
   Future<void> _runSequence() async {
+    // run each step in order...
     for (var i = 0; i < _tasks.length; i++) {
       if (!mounted) return;
       setState(() => _currentStepIndex = i);
@@ -83,13 +83,18 @@ class _InitializingScreenState extends State<InitializingScreen> {
       });
     }
 
-    // Show a splash ad if enabled
+    // Always show a splash ad if enabled, regardless of country
     final settings = SettingsController.instance.settings;
     if (settings.showAdmobAds) {
-      await AdMobService.instance.showSplashAd();
+      try {
+        await AdMobService.instance.showSplashAd();
+      } catch (e) {
+        debugPrint('Splash ad failed: $e');
+        // retry نمی‌کنیم چون متد loadSplashAd وجود ندارد
+      }
     }
 
-    // Move to MainPage
+    // Move on to MainPage
     if (!mounted) return;
     Navigator.pushReplacement(
       context,
