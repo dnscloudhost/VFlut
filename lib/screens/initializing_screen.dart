@@ -9,6 +9,7 @@ import '../controllers/settings_controller.dart'; // SettingsController
 import '../services/smart_vpn_manager.dart';      // SmartVpnManager
 import '../services/admob_service.dart';          // AdMobService
 import '../main.dart';                            // MainPage
+import '../widgets/ad_preparing_overlay.dart';    // overlay widget
 
 class InitializingScreen extends StatefulWidget {
   const InitializingScreen({Key? key}) : super(key: key);
@@ -20,14 +21,12 @@ class _InitializingScreenState extends State<InitializingScreen> {
   double _progressValue = 0.0;
   int _currentStepIndex = 0;
 
-  // Keep this as dynamic so you can store both String and callback
   late final List<Map<String, dynamic>> _tasks;
   late final List<bool> _completed;
 
   @override
   void initState() {
     super.initState();
-
     _tasks = [
       {
         'text': 'Initializing security',
@@ -35,9 +34,7 @@ class _InitializingScreenState extends State<InitializingScreen> {
       },
       {
         'text': 'Loading app settings',
-        'task': () async {
-          await SettingsController.instance.load();
-        },
+        'task': () => SettingsController.instance.load(),
       },
       {
         'text': 'Checking connection',
@@ -52,7 +49,6 @@ class _InitializingScreenState extends State<InitializingScreen> {
         'task': () => _simulateTask(durationMillis: 500),
       },
     ];
-
     _completed = List<bool>.filled(_tasks.length, false);
     _runSequence();
   }
@@ -73,15 +69,27 @@ class _InitializingScreenState extends State<InitializingScreen> {
       SmartVpnManager.instance.setSmartServers(smartList);
 
       // 3️⃣ Detect user country
-      final cc = (await SettingsController.instance.detectUserCountryCode())
-          .toLowerCase();
+      final cc = (await SettingsController.instance.detectUserCountryCode()).toLowerCase();
 
-      // 4️⃣ If it's a smart country, connect smart
-      if (SettingsController.instance.isSmartCountry(cc)) {
+      // 4️⃣ If include_country, connect to smart now (with overlay)
+      if (SettingsController.instance.isSmartCountry(cc) && smartList.isNotEmpty) {
+        // show a “please wait” overlay
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (_) => const AdPreparingOverlay(message: 'Connecting to smart…'),
+        );
+
+        // actually connect
         await SmartVpnManager.instance.connectSmart();
+
+        // remove overlay
+        if (mounted) Navigator.pop(context);
       }
     } catch (e) {
       debugPrint('Error preparing VPN servers: $e');
+      // ensure we close overlay if something broke
+      if (mounted) Navigator.popUntil(context, (route) => route.isFirst);
     }
   }
 
@@ -89,8 +97,10 @@ class _InitializingScreenState extends State<InitializingScreen> {
     for (var i = 0; i < _tasks.length; i++) {
       if (!mounted) return;
       setState(() => _currentStepIndex = i);
-      // Cast and invoke the stored callback
+
+      // invoke each task
       await (_tasks[i]['task'] as Future<void> Function())();
+
       if (!mounted) return;
       setState(() {
         _completed[i] = true;
@@ -100,7 +110,7 @@ class _InitializingScreenState extends State<InitializingScreen> {
 
     // Show splash ad if enabled
     final settings = SettingsController.instance.settings;
-    if (settings.showAds) {
+    if (settings.showAdmobAds) {
       await AdMobService.instance.showSplashAd();
     }
 
