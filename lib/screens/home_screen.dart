@@ -81,9 +81,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
     // If include country & ads on, show splash ad
     final settings = SettingsController.instance.settings;
-    final isSmart = SettingsController.instance.isSmartCountry(_currentCode);
-    if (isSmart && settings.showAdmobAds) {
+    if (settings.showAdmobAds) {
       await AdMobService.instance.showSplashAd();
+      AdMobService.instance.loadInterstitial(AdSlot.splashOpen);
+      AdMobService.instance.loadInterstitial(AdSlot.connectInterstitial);
+      AdMobService.instance.loadInterstitial(AdSlot.disconnectInterstitial);
     }
   }
 
@@ -169,7 +171,10 @@ class _HomeScreenState extends State<HomeScreen> {
     // Show connect ad if on
     if (settings.showAdmobAds) {
       await AdMobService.instance.showConnectAd();
+      // بعد از نمایشِ ConnectAd، حتماً دوباره لودش کن
+      AdMobService.instance.loadInterstitial(AdSlot.connectInterstitial);
     }
+
 
     // Keep smart live for limit
     if (needSmart) {
@@ -223,6 +228,7 @@ class _HomeScreenState extends State<HomeScreen> {
     // Show disconnect ad if on
     if (settings.showAdmobAds) {
       await AdMobService.instance.showDisconnectAd();
+      AdMobService.instance.loadInterstitial(AdSlot.disconnectInterstitial);
     }
 
     await flutterV2ray.stopV2Ray();
