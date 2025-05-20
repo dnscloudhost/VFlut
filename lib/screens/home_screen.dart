@@ -1,12 +1,12 @@
 // lib/screens/home_screen.dart
 
-import 'package:flutter/services.dart';
 import 'dart:async';
 import 'dart:convert';
-import 'dart:ui';
 import 'dart:math' as math;
+import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_v2ray/flutter_v2ray.dart';
 import 'package:lottie/lottie.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -52,11 +52,11 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _init() async {
-    // Load bypassed app packages
+    // Load bypassed apps
     final prefs = await SharedPreferences.getInstance();
     _bypassedAppPackages = prefs.getStringList('bypassed_packages') ?? [];
 
-    // Initialize current server from fetched configs
+    // Pick first server if any
     if (allConfigs.isNotEmpty) {
       final first = allConfigs.first;
       _currentServer = first.country;
@@ -65,13 +65,12 @@ class _HomeScreenState extends State<HomeScreen> {
       _currentCode   = first.countryCode;
     }
 
-    // Initialize FlutterV2ray
+    // Init V2Ray
     flutterV2ray = FlutterV2ray(onStatusChanged: (s) {
       if (!mounted) return;
       status.value = s;
       _handleTicker(s);
     });
-
     await flutterV2ray.initializeV2Ray(
       notificationIconResourceType: 'mipmap',
       notificationIconResourceName: 'ic_launcher',
@@ -80,10 +79,10 @@ class _HomeScreenState extends State<HomeScreen> {
     coreVersion = await flutterV2ray.getCoreVersion();
     setState(() {});
 
-    // Show splash ad if enabled and user is in Smart country
+    // If include country & ads on, show splash ad
     final settings = SettingsController.instance.settings;
     final isSmart = SettingsController.instance.isSmartCountry(_currentCode);
-    if (settings.showAds && isSmart) {
+    if (isSmart && settings.showAdmobAds) {
       await AdMobService.instance.showSplashAd();
     }
   }
@@ -120,7 +119,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _startConnectFlow() async {
     final settings = SettingsController.instance.settings;
-
     if (_currentLink == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please select a server first.')),
@@ -128,12 +126,11 @@ class _HomeScreenState extends State<HomeScreen> {
       return;
     }
 
-    // Prepare parameters
+    // Prepare selection
     String link   = _currentLink!;
     String remark = _currentServer;
     String code   = _currentCode;
     String city   = _currentCity;
-
     if (link == 'auto' && allConfigs.isNotEmpty) {
       final best = allConfigs.first;
       link   = best.link;
@@ -142,13 +139,15 @@ class _HomeScreenState extends State<HomeScreen> {
       city   = best.city;
     }
 
-    // Delay before connect
-    if (settings.delayBeforeConnect > 0) {
-      await Future.delayed(Duration(milliseconds: settings.delayBeforeConnect));
+    // Delay if configured
+    final delayConnect = settings.delayBeforeConnect ?? 0;
+    if (delayConnect > 0) {
+      await Future.delayed(Duration(milliseconds: delayConnect));
     }
 
     final needSmart = SettingsController.instance.isSmartCountry(code);
     if (needSmart) {
+      // Connect to one smart server first
       showDialog(
         context: context,
         barrierDismissible: false,
@@ -167,43 +166,41 @@ class _HomeScreenState extends State<HomeScreen> {
       Navigator.pop(context);
     }
 
-    // Show connect ad
-    if (settings.showAds) {
+    // Show connect ad if on
+    if (settings.showAdmobAds) {
       await AdMobService.instance.showConnectAd();
     }
 
-    // Maintain smart connection for limit duration
+    // Keep smart live for limit
     if (needSmart) {
       final dur = Duration(
-        hours:   settings.connectionLimitHours,
-        minutes: settings.connectionLimitMinutes,
+        hours:   settings.connectionLimitHours   ?? 0,
+        minutes: settings.connectionLimitMinutes ?? 0,
       );
       await Future.delayed(dur);
     }
 
-    // Connect to chosen server
-    await _connectToConfig(
-      LocationConfig(
-        id: -1,
-        country:     remark,
-        city:        city,
-        link:        link,
-        countryCode: code,
-        serverType:  'free',
-      ),
-    );
+    // Finally connect to user selected server
+    await _connectToConfig(LocationConfig(
+      id: -1,
+      country:     remark,
+      city:        city,
+      link:        link,
+      countryCode: code,
+      serverType:  'free',
+    ));
   }
 
   Future<void> _startDisconnectFlow() async {
     final settings = SettingsController.instance.settings;
-
-    // Delay before disconnect
-    if (settings.delayBeforeDisconnect > 0) {
-      await Future.delayed(Duration(milliseconds: settings.delayBeforeDisconnect));
+    final delayDisc = settings.delayBeforeDisconnect ?? 0;
+    if (delayDisc > 0) {
+      await Future.delayed(Duration(milliseconds: delayDisc));
     }
 
     final needSmart = SettingsController.instance.isSmartCountry(_currentCode);
     if (needSmart) {
+      // Stop then re-start smart
       await flutterV2ray.stopV2Ray();
       showDialog(
         context: context,
@@ -223,8 +220,8 @@ class _HomeScreenState extends State<HomeScreen> {
       Navigator.pop(context);
     }
 
-    // Show disconnect ad
-    if (settings.showAds) {
+    // Show disconnect ad if on
+    if (settings.showAdmobAds) {
       await AdMobService.instance.showDisconnectAd();
     }
 
@@ -262,8 +259,8 @@ class _HomeScreenState extends State<HomeScreen> {
     _limitTimer?.cancel();
     final set = SettingsController.instance.settings;
     final dur = Duration(
-      hours:   set.connectionLimitHours,
-      minutes: set.connectionLimitMinutes,
+      hours:   set.connectionLimitHours   ?? 0,
+      minutes: set.connectionLimitMinutes ?? 0,
     );
     _limitTimer = Timer(dur, () {
       if (mounted && status.value.state == 'CONNECTED') {
@@ -273,25 +270,25 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   String _formatDuration(Duration d) =>
-      '${d.inHours.toString().padLeft(2, '0')}'
-          ':${(d.inMinutes % 60).toString().padLeft(2, '0')}'
-          ':${(d.inSeconds % 60).toString().padLeft(2, '0')}';
+      '${d.inHours.toString().padLeft(2,'0')}:' +
+          '${(d.inMinutes%60).toString().padLeft(2,'0')}:' +
+          '${(d.inSeconds%60).toString().padLeft(2,'0')}';
 
   String _formatBytes(int b, {int decimals = 0}) {
     if (b <= 0) return '0 B';
-    const units = ['B', 'KB', 'MB', 'GB', 'TB'];
-    final i = (math.log(b) / math.log(1024)).floor().clamp(0, units.length - 1);
+    const units = ['B','KB','MB','GB','TB'];
+    final i = (math.log(b)/math.log(1024)).floor().clamp(0,units.length-1);
     return i == 0
         ? '$b ${units[i]}'
-        : '${(b / math.pow(1024, i)).toStringAsFixed(decimals)} ${units[i]}';
+        : '${(b/math.pow(1024,i)).toStringAsFixed(decimals)} ${units[i]}';
   }
 
   String _applyV2RayConfigTweaks(String rawJson) {
-    final m = json.decode(rawJson) as Map<String, dynamic>;
+    final m = json.decode(rawJson) as Map<String,dynamic>;
     m['stats'] = m['stats'] ?? {};
-    final policy = Map<String, dynamic>.from(m['policy'] ?? {});
-    final levels = Map<String, dynamic>.from(policy['levels'] ?? {});
-    final level0 = Map<String, dynamic>.from(levels['0'] ?? {});
+    final policy = Map<String,dynamic>.from(m['policy'] ?? {});
+    final levels = Map<String,dynamic>.from(policy['levels'] ?? {});
+    final level0 = Map<String,dynamic>.from(levels['0'] ?? {});
     level0['statsUserUplink']   = true;
     level0['statsUserDownlink'] = true;
     levels['0'] = level0;
@@ -299,19 +296,19 @@ class _HomeScreenState extends State<HomeScreen> {
     m['policy'] = policy;
 
     if (_bypassedAppPackages.isNotEmpty) {
-      final routing = Map<String, dynamic>.from(m['routing'] ?? {});
+      final routing = Map<String,dynamic>.from(m['routing'] ?? {});
       routing['domainStrategy'] = routing['domainStrategy'] ?? 'IPIfNonMatch';
       final rules = List<dynamic>.from(routing['rules'] ?? []);
       rules.removeWhere((r) =>
       r is Map &&
-          r['type'] == 'field' &&
-          r['outboundTag'] == 'direct' &&
+          r['type']=='field' &&
+          r['outboundTag']=='direct' &&
           r.containsKey('packageName')
       );
       rules.add({
-        'type': 'field',
-        'outboundTag': 'direct',
-        'packageName': _bypassedAppPackages,
+        'type':'field',
+        'outboundTag':'direct',
+        'packageName':_bypassedAppPackages,
       });
       routing['rules'] = rules;
       m['routing'] = routing;
@@ -322,20 +319,20 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildFlag() {
     final code = _currentCode.toLowerCase();
-    if (code == 'globe') {
-      return const Icon(Icons.language_rounded, size: 32, color: Colors.white70);
+    if (code=='globe') {
+      return const Icon(Icons.language_rounded, size:32, color:Colors.white70);
     }
-    if (code == 'default' || code == 'error') {
-      return const Icon(Icons.public_off_rounded, size: 32, color: Colors.white60);
+    if (code=='default'||code=='error') {
+      return const Icon(Icons.public_off_rounded, size:32, color:Colors.white60);
     }
     final path = 'assets/flags/$code.svg';
     return FutureBuilder<ByteData>(
       future: rootBundle.load(path),
-      builder: (ctx, snap) {
-        if (snap.connectionState == ConnectionState.done && snap.hasData) {
-          return SvgPicture.asset(path, width: 32, height: 32);
+      builder: (ctx,snap) {
+        if (snap.connectionState==ConnectionState.done && snap.hasData) {
+          return SvgPicture.asset(path, width:32, height:32);
         }
-        return const Icon(Icons.public_off_rounded, size: 32, color: Colors.white60);
+        return const Icon(Icons.public_off_rounded, size:32, color:Colors.white60);
       },
     );
   }
@@ -366,10 +363,8 @@ class _HomeScreenState extends State<HomeScreen> {
             icon: const Icon(Icons.apps_rounded, color: Colors.white70, size: 28),
             onPressed: () {},
           ),
-          title: Text(
-            vpnAppName,
-            style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
-          ),
+          title: Text(vpnAppName,
+              style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
           actions: [
             IconButton(
               icon: const Icon(Icons.tune_rounded, color: Colors.white70, size: 28),
@@ -379,7 +374,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   context,
                   MaterialPageRoute(builder: (_) => SplitTunnelScreen(flutterV2ray: flutterV2ray)),
                 );
-                // reload bypassed apps
                 final prefs = await SharedPreferences.getInstance();
                 _bypassedAppPackages = prefs.getStringList('bypassed_packages') ?? [];
                 if (r == true && mounted && status.value.state == 'CONNECTED') {
@@ -399,10 +393,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: accent.withOpacity(0.85),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
+                  decoration: BoxDecoration(color: accent.withOpacity(0.85), borderRadius: BorderRadius.circular(10)),
                   child: Row(
                     children: [
                       const Icon(Icons.workspace_premium, color: Colors.white, size: 22),
@@ -449,9 +440,8 @@ class _HomeScreenState extends State<HomeScreen> {
                           child: Container(
                             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                             decoration: BoxDecoration(
-                              color: Colors.black.withOpacity(0.25),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
+                                color: Colors.black.withOpacity(0.25),
+                                borderRadius: BorderRadius.circular(8)),
                             child: Text(
                               st.state.toUpperCase(),
                               style: TextStyle(
@@ -490,18 +480,18 @@ class _HomeScreenState extends State<HomeScreen> {
                   valueListenable: status,
                   builder: (_, st, __) {
                     final down = _formatBytes(st.download, decimals: 0);
-                    final up   = _formatBytes(st.upload,   decimals: 0);
+                    final up = _formatBytes(st.upload, decimals: 0);
                     return Row(
                       mainAxisAlignment: MainAxisAlignment.spaceAround,
                       children: [
                         _SvgStatItem(svgPath: 'assets/icons/download.svg', value: down, label: 'Download'),
-                        _SvgStatItem(svgPath: 'assets/icons/upload.svg',   value: up,   label: 'Upload'),
+                        _SvgStatItem(svgPath: 'assets/icons/upload.svg', value: up, label: 'Upload'),
                       ],
                     );
                   },
                 ),
               ),
-              // Current Server Selector
+              // Server selector
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
                 child: ClipRRect(
@@ -512,10 +502,9 @@ class _HomeScreenState extends State<HomeScreen> {
                       height: 70,
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       decoration: BoxDecoration(
-                        color: cardColor.withOpacity(0.55),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.white.withOpacity(0.1)),
-                      ),
+                          color: cardColor.withOpacity(0.55),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.white.withOpacity(0.1))),
                       child: Row(
                         children: [
                           ClipOval(child: _buildFlag()),
@@ -526,7 +515,8 @@ class _HomeScreenState extends State<HomeScreen> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(_currentServer,
-                                    style: const TextStyle(color: Colors.white, fontSize: 15.5, fontWeight: FontWeight.bold),
+                                    style: const TextStyle(
+                                        color: Colors.white, fontSize: 15.5, fontWeight: FontWeight.bold),
                                     overflow: TextOverflow.ellipsis),
                                 if (_currentCity.isNotEmpty)
                                   Text(_currentCity,
@@ -542,19 +532,16 @@ class _HomeScreenState extends State<HomeScreen> {
                                 MaterialPageRoute(builder: (_) => const LocationsScreen()),
                               );
                               if (loc == null || !mounted) return;
-
                               final changed = _currentLink != loc.link;
                               if (status.value.state == 'CONNECTED' && (changed || _currentLink == 'auto')) {
                                 await flutterV2ray.stopV2Ray();
                               }
-
                               setState(() {
                                 _currentServer = loc.country;
-                                _currentCity   = loc.city;
-                                _currentLink   = loc.link;
-                                _currentCode   = loc.countryCode;
+                                _currentCity = loc.city;
+                                _currentLink = loc.link;
+                                _currentCode = loc.countryCode;
                               });
-
                               if (loc.link == 'auto') {
                                 _toggleConnection();
                               }
@@ -581,11 +568,12 @@ class _SvgStatItem extends StatelessWidget {
   final String svgPath;
   final String value;
   final String label;
+
   const _SvgStatItem({
     required this.svgPath,
     required this.value,
     required this.label,
-    Key? key
+    Key? key,
   }) : super(key: key);
 
   @override
@@ -597,7 +585,8 @@ class _SvgStatItem extends StatelessWidget {
         const SizedBox(height: 5),
         Text(label, style: TextStyle(color: Colors.white.withOpacity(0.65), fontSize: 11)),
         const SizedBox(height: 2),
-        Text(value, style: const TextStyle(color: Colors.white, fontSize: 13.5, fontWeight: FontWeight.w600)),
+        Text(value,
+            style: const TextStyle(color: Colors.white, fontSize: 13.5, fontWeight: FontWeight.w600)),
       ],
     );
   }
