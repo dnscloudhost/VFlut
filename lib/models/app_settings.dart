@@ -2,7 +2,7 @@
 
 import '../services/admob_service.dart';
 
-/// تمام کلیدهای خروجی API را – حتی آنهایی که هنوز استفاده نمی‌شوند – نگه می‌داریم.
+/// نگه داشتن تمام کلیدهای خروجی API
 class AppSettings {
   // ناحیه/کشور
   final List<String> excludeTimezones;
@@ -44,6 +44,7 @@ class AppSettings {
   final bool pingAfterConnectionEnabled;
 
   // AdMob / Unity
+  final bool smartModeEnabled;   // ← فیلد جدید
   final bool showAdmobAds;
   final bool gdprActive;
   final Map<String, String> adUnits;          // همهٔ id‌ها، کلید = نام اسلات
@@ -78,6 +79,7 @@ class AppSettings {
     required this.normalIntDPingEnabled,
     required this.normalIntDRequestTime,
     required this.pingAfterConnectionEnabled,
+    required this.smartModeEnabled,            // ← اضافه شد
     required this.showAdmobAds,
     required this.gdprActive,
     required this.adUnits,
@@ -133,6 +135,7 @@ class AppSettings {
       normalIntDPingEnabled:        j['normal_int_d_ping_enabled']      as bool,
       normalIntDRequestTime:        j['normal_int_d_request_time']      as int?,
       pingAfterConnectionEnabled:   j['ping_after_connection_enabled']  as bool,
+      smartModeEnabled:             j['smart_mode_enabled']             as bool? ?? false, // ← نگاشت JSON
       showAdmobAds:                 j['show_admob_ads']                 as bool,
       gdprActive:                   j['gdpr_active']                    as bool,
       adUnits:                      units,
@@ -140,4 +143,38 @@ class AppSettings {
       adIntervalEnabled:            intervalsEnabled,
     );
   }
+
+  Map<String, dynamic> toJson() => {
+    'exclude_timezones': excludeTimezones,
+    'include_timezones': includeTimezones,
+    'include_enabled': includeEnabled,
+    'exclude_enabled': excludeEnabled,
+    'privacy_policy_link': privacyPolicyLink,
+    'app_version': appVersion,
+    'auto_connect_enabled': autoConnectEnabled,
+    'prevent_old_versions': preventOldVersions,
+    'globally_disable_vpn': globallyDisableVpn,
+    'show_vpn_iran': showVpnIran,
+    'show_vpn_outside_iran': showVpnOutsideIran,
+    'update_filter_enabled': updateFilterEnabled,
+    'connection_limit_hours': connectionLimitHours,
+    'connection_limit_minutes': connectionLimitMinutes,
+    'delay_before_connect': delayBeforeConnect,
+    'delay_before_disconnect': delayBeforeDisconnect,
+    'delay_before_splash_smc': delayBeforeSplashSmc,
+    'delay_before_splash_smd': delayBeforeSplashSmd,
+    'splash_smc_ping_enabled': splashSmcPingEnabled,
+    'splash_smc_request_time': splashSmcRequestTime,
+    'splash_smd_ping_enabled': splashSmdPingEnabled,
+    'splash_smd_request_time': splashSmdRequestTime,
+    'normal_int_c_ping_enabled': normalIntCPingEnabled,
+    'normal_int_c_request_time': normalIntCRequestTime,
+    'normal_int_d_ping_enabled': normalIntDPingEnabled,
+    'normal_int_d_request_time': normalIntDRequestTime,
+    'ping_after_connection_enabled': pingAfterConnectionEnabled,
+    'smart_mode_enabled': smartModeEnabled,    // ← نگاشت خروجی
+    'show_admob_ads': showAdmobAds,
+    'gdpr_active': gdprActive,
+    // برای adUnits و intervals طبق نیاز خروجی را کامل کنید
+  };
 }
