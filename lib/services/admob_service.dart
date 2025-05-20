@@ -249,6 +249,11 @@ class AdMobService {
     await _showAd(AdSlot.splashOpen);
   }
 
+  /// برای Preload مجدد یک Interstitial از بیرون
+  Future<void> loadInterstitial(AdSlot slot) async {
+    await _loadAd(slot);
+  }
+
   void dispose() {
     for (final ad in _intAds.values)    ad?.dispose();
     for (final ad in _rewAds.values)    ad?.dispose();
