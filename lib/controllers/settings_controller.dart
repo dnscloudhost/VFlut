@@ -1,7 +1,7 @@
-// lib/controllers/settings_controller.dart
-
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
+import 'package:http/http.dart' as http;    // ← اضافه شد
 import '../models/app_settings.dart';
 import '../services/app_settings_api.dart';
 
@@ -18,9 +18,12 @@ class SettingsController {
     try {
       settings = await AppSettingsApi.fetchSettings();
       debugPrint('>>> Loaded AppSettings: $settings');
+      debugPrint('    includeEnabled: ${settings.includeEnabled}');
+      debugPrint('    smartModeEnabled: ${settings.smartModeEnabled}');
+      debugPrint('    includeTimezones: ${settings.includeTimezones}');
     } catch (e, st) {
       debugPrint('Error loading AppSettings: $e\n$st');
-      // در صورت خطا یک نمونه‌ی پیش‌فرض خالی بسازید
+      // در صورت خطا یک نمونه‌ی پیش‌فرض بسازید
       settings = AppSettings.fromJson({
         'exclude_timezones': <String>[],
         'include_timezones': <String>[],
@@ -49,7 +52,7 @@ class SettingsController {
         'normal_int_d_ping_enabled': false,
         'normal_int_d_request_time': null,
         'ping_after_connection_enabled': false,
-        'smart_mode_enabled': false,          // ← اضافه شد
+        'smart_mode_enabled': false,
         'show_admob_ads': false,
         'gdpr_active': false,
         'unityads_reward_open_id': '',
@@ -59,33 +62,54 @@ class SettingsController {
         'unityads_reward_interstitial_disconnect_id': '',
         'unityads_interstitial_id': '',
         'unityads_rewarded_id': '',
-        'unityads_reward_open_interval_enabled': false,
-        'unityads_interstitial_connect_interval_enabled': false,
-        'unityads_reward_interstitial_connect_interval_enabled': false,
-        'unityads_interstitial_disconnect_interval_enabled': false,
-        'unityads_reward_interstitial_disconnect_interval_enabled': false,
-        'unityads_reward_interstitial_interval_enabled': false,
-        'unityads_rewarded_interval_enabled': false,
+        // … سایر کلیدهای مورد نیاز براساس AppSettings.fromJson …
       });
     }
   }
 
-  /// آیا قابلیت Smart VPN آزاد است؟
+  /// آیا Smart-mode از سرور فعال شده؟
   bool get smartModeEnabled => settings.smartModeEnabled;
 
-  /// بررسی اینکه آیا یک کشور Smart تعریف شده
-  bool isSmartCountry(String countryCode) {
-    // فقط وقتی Smart Mode فعال است و includeEnabled را داریم
-    if (!settings.smartModeEnabled || !settings.includeEnabled) return false;
-    final code = countryCode.toLowerCase();
-    return settings.includeTimezones
-        .map((c) => c.toLowerCase())
-        .contains(code);
+  /// آیا include_mode از سرور فعال است؟
+  bool get includeEnabled => settings.includeEnabled;
+
+  /// لیست کدهای کشور برای Smart
+  List<String> get includeTimezones => settings.includeTimezones;
+
+  /// تشخیص کد کشور واقعی (اول IP-geo، بعد locale)
+  Future<String> detectUserCountryCode() async {
+    // ۱. IP-geo
+    try {
+      debugPrint('DetectCountry: falling back to IP lookup…');
+      final resp = await http.get(Uri.parse('http://ip-api.com/json'));
+      if (resp.statusCode == 200) {
+        final body = jsonDecode(resp.body) as Map<String, dynamic>;
+        final country = body['countryCode'] as String?;
+        if (country != null && country.isNotEmpty) {
+          debugPrint('DetectCountry: via IP = $country');
+          return country.toLowerCase();
+        }
+        debugPrint('DetectCountry: IP lookup returned no countryCode');
+      } else {
+        debugPrint('DetectCountry: IP lookup status ${resp.statusCode}');
+      }
+    } catch (e) {
+      debugPrint('DetectCountry: IP-geo lookup failed: $e');
+    }
+
+    // ۲. locale
+    final localeCode = WidgetsBinding.instance.window.locale.countryCode;
+    debugPrint('DetectCountry: locale = $localeCode');
+    return (localeCode ?? '').toLowerCase();
   }
 
-  /// تشخیص خودکار کد کشور دستگاه
-  Future<String> detectUserCountryCode() async {
-    final locale = WidgetsBinding.instance.window.locale;
-    return locale.countryCode?.toLowerCase() ?? '';
+  /// آیا کاربر در یکی از کشورهای include شده است؟
+  bool isSmartCountry(String countryCode) {
+    if (!smartModeEnabled || !includeEnabled) return false;
+    final code = countryCode.toLowerCase();
+    final ok = includeTimezones.map((c) => c.toLowerCase()).contains(code);
+    debugPrint('isSmartCountry($code) → $ok '
+        '(smartMode=$smartModeEnabled, includeEnabled=$includeEnabled, list=$includeTimezones)');
+    return ok;
   }
 }
