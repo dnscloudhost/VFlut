@@ -1,15 +1,13 @@
-// lib/screens/initializing_screen.dart
-
 import 'dart:async';
 import 'package:flutter/material.dart';
 
-import '../data/locations.dart';                   // provides global allConfigs
-import '../services/server_api.dart';             // ServerApi.loadAllServers, getSmartServers()
-import '../controllers/settings_controller.dart'; // SettingsController
-import '../services/smart_vpn_manager.dart';      // SmartVpnManager
-import '../services/admob_service.dart';          // AdMobService
-import '../main.dart';                            // MainPage
-import '../widgets/ad_preparing_overlay.dart';    // overlay widget
+import '../data/locations.dart';                // allConfigs
+import '../services/server_api.dart';          // ServerApi.loadAllServers, getSmartServers
+import '../controllers/settings_controller.dart';
+import '../services/vpn_service.dart';         // VpnService.connectSmart()
+import '../services/admob_service.dart';
+import '../main.dart';
+import '../widgets/ad_preparing_overlay.dart';
 
 class InitializingScreen extends StatefulWidget {
   const InitializingScreen({Key? key}) : super(key: key);
@@ -28,52 +26,34 @@ class _InitializingScreenState extends State<InitializingScreen> {
   void initState() {
     super.initState();
     _tasks = [
-      {
-        'text': 'Initializing security',
-        'task': () => _simulateTask(durationMillis: 800),
-      },
-      {
-        'text': 'Loading app settings',
-        'task': () => SettingsController.instance.load(),
-      },
-      {
-        'text': 'Checking connection',
-        'task': () => _simulateTask(durationMillis: 700),
-      },
-      {
-        'text': 'Preparing VPN servers',
-        'task': () => _prepareVpnServers(),
-      },
-      {
-        'text': 'Almost ready',
-        'task': () => _simulateTask(durationMillis: 500),
-      },
+      {'text': 'Initializing security',    'task': () => _simulateTask(800)},
+      {'text': 'Loading app settings',     'task': () => SettingsController.instance.load()},
+      {'text': 'Checking connection',      'task': () => _simulateTask(700)},
+      {'text': 'Preparing VPN servers',    'task': () => _prepareVpnServers()},
+      {'text': 'Almost ready',             'task': () => _simulateTask(500)},
     ];
     _completed = List<bool>.filled(_tasks.length, false);
     _runSequence();
   }
 
-  static Future<void> _simulateTask({int durationMillis = 500}) =>
-      Future.delayed(Duration(milliseconds: durationMillis));
+  static Future<void> _simulateTask(int ms) =>
+      Future.delayed(Duration(milliseconds: ms));
 
   Future<void> _prepareVpnServers() async {
     try {
-      // 1️⃣ Load all servers
+      // 1️⃣ Load & cache all servers
       allConfigs = await ServerApi.loadAllServers();
-      if (allConfigs.isEmpty) {
-        debugPrint('Warning: no VPN servers loaded');
-      }
-
-      // 2️⃣ Register smart servers
       final smartList = ServerApi.getSmartServers(allConfigs);
-      SmartVpnManager.instance.setSmartServers(smartList);
+      debugPrint('>>> smartList (${smartList.length}) = $smartList');
 
-      // 3️⃣ Detect user country
-      final cc = (await SettingsController.instance.detectUserCountryCode()).toLowerCase();
+      // 2️⃣ Detect user country
+      final cc = await SettingsController.instance.detectUserCountryCode();
+      debugPrint('>>> Detected countryCode: $cc');
+      final ok = SettingsController.instance.isSmartCountry(cc);
+      debugPrint('>>> isSmartCountry? $ok, smartServers=${smartList.length}');
 
-      // 4️⃣ If include_country, connect to smart now (with overlay)
-      if (SettingsController.instance.isSmartCountry(cc) && smartList.isNotEmpty) {
-        // show a “please wait” overlay
+      // 3️⃣ If in include list, connect to smart
+      if (ok && smartList.isNotEmpty) {
         showDialog(
           context: context,
           barrierDismissible: false,
@@ -81,15 +61,13 @@ class _InitializingScreenState extends State<InitializingScreen> {
         );
 
         // actually connect
-        await SmartVpnManager.instance.connectSmart();
+        await VpnService.instance.connectSmart();
 
-        // remove overlay
         if (mounted) Navigator.pop(context);
       }
     } catch (e) {
-      debugPrint('Error preparing VPN servers: $e');
-      // ensure we close overlay if something broke
-      if (mounted) Navigator.popUntil(context, (route) => route.isFirst);
+      debugPrint('Error in _prepareVpnServers: $e');
+      if (mounted) Navigator.popUntil(context, (r) => r.isFirst);
     }
   }
 
@@ -97,10 +75,7 @@ class _InitializingScreenState extends State<InitializingScreen> {
     for (var i = 0; i < _tasks.length; i++) {
       if (!mounted) return;
       setState(() => _currentStepIndex = i);
-
-      // invoke each task
       await (_tasks[i]['task'] as Future<void> Function())();
-
       if (!mounted) return;
       setState(() {
         _completed[i] = true;
@@ -108,12 +83,13 @@ class _InitializingScreenState extends State<InitializingScreen> {
       });
     }
 
-    // Show splash ad if enabled
+    // Show a splash ad if enabled
     final settings = SettingsController.instance.settings;
     if (settings.showAdmobAds) {
       await AdMobService.instance.showSplashAd();
     }
 
+    // Move to MainPage
     if (!mounted) return;
     Navigator.pushReplacement(
       context,
@@ -167,28 +143,29 @@ class _InitializingScreenState extends State<InitializingScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.shield_outlined,
-                  size: 80, color: Colors.blueAccent.shade100),
+              Icon(Icons.shield_outlined, size: 80, color: Colors.blueAccent.shade100),
               const SizedBox(height: 24),
-              const Text(vpnAppName,
-                  style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 32,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 1.2)),
+              const Text(
+                vpnAppName,
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 32,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 1.2,
+                ),
+              ),
               const SizedBox(height: 8),
-              Text(vpnAppSlogan,
-                  style: TextStyle(
-                      color: Colors.grey.shade400, fontSize: 16)),
+              Text(
+                vpnAppSlogan,
+                style: TextStyle(color: Colors.grey.shade400, fontSize: 16),
+              ),
               const SizedBox(height: 48),
               ClipRRect(
                 borderRadius: BorderRadius.circular(8),
                 child: LinearProgressIndicator(
                   value: _progressValue,
-                  backgroundColor:
-                  Colors.grey.shade700.withOpacity(0.5),
-                  valueColor: AlwaysStoppedAnimation<Color>(
-                      Colors.blueAccent.shade200),
+                  backgroundColor: Colors.grey.shade700.withOpacity(0.5),
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.blueAccent.shade200),
                   minHeight: 8,
                 ),
               ),
