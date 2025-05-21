@@ -64,16 +64,6 @@ class _InitializingScreenState extends State<InitializingScreen> {
         await VpnService.instance.connectSmart();
         if (mounted) Navigator.pop(context);
 
-        // 4️⃣ در غیر این صورت (کاربر غیر-include): مثل حالت عادی تبلیغ کانکت را نمایش بده
-      } else {
-        final settings = SettingsController.instance.settings;
-        if (settings.showAdmobAds) {
-          try {
-            await AdMobService.instance.showConnectAd();  // ← متد نمایش ad هنگام کانکت
-          } catch (e) {
-            debugPrint('Connect ad failed: $e');
-          }
-        }
       }
     } catch (e) {
       debugPrint('Error in _prepareVpnServers: $e');
