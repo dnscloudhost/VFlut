@@ -6,7 +6,7 @@ import '../models/app_settings.dart';
 
 /// سرویس برای دریافت تنظیمات و feature flags اپ
 class AppSettingsApi {
-  static const String _baseUrl = 'https://75e7-2a03-90c0-5f1-2903-00-951.ngrok-free.app';
+  static const String _baseUrl = 'https://5891-2a03-90c0-5f1-2903-00-951.ngrok-free.app';
   static const String _token   = '26|dhcAmNOaXR2GSsNIkCIt9RsvzFcSkzUPCsAZ8uBRf29385f5';
 
   /// دریافت تنظیمات اپ از API
