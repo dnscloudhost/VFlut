@@ -8,7 +8,7 @@ import '../data/locations.dart';
 
 /// سرویس برای دریافت و دسته‌بندی سرورهای VPN
 class ServerApi {
-  static const String _baseUrl = 'https://75e7-2a03-90c0-5f1-2903-00-951.ngrok-free.app';
+  static const String _baseUrl = 'https://5891-2a03-90c0-5f1-2903-00-951.ngrok-free.app';
   static const String _token   = '26|dhcAmNOaXR2GSsNIkCIt9RsvzFcSkzUPCsAZ8uBRf29385f5';
 
   /// ۱. دریافت سرورهای ریموت از API
